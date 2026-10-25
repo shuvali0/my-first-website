@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cat Runner</title>
+<link rel="icon" type="image/png" href="meow.png">
+
+    <style>
+        body {
+            margin: 0;
+            background-color: #1a1a1a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: Arial, sans-serif;
+            color: #888888;
+            overflow: hidden;
+            user-select: none;
+        }
+        #gameContainer {
+            position: relative;
+        }
+        canvas {
+            background-color: #2b2b2b;
+            box-shadow: 0px 10px 30px rgba(0,0,0,0.5);
+            display: block;
+        }
+        #score {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        #creator {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            font-size: 12px;
+            font-style: italic;
+            color: #666666;
+        }
+        #gameOverText {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+        #gameOverText h1 {
+            color: #ff5555;
+            margin: 0 0 10px 0;
+            font-size: 32px;
+        }
+        #gameOverText p {
+            margin: 0;
+            font-size: 14px;
+            color: #aaaaaa;
+        }
+    </style>
+</head>
+<body>
+
+<div id="gameContainer">
+    <div id="score">Score: 0</div>
+    <canvas id="gameCanvas" width="600" height="300"></canvas>
+    <div id="creator">Created by shuvali01</div>
+    <div id="gameOverText">
+        <h1>GAME OVER</h1>
+        <p>Click anywhere to restart</p>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    const scoreElement = document.getElementById("score");
+    const gameOverText = document.getElementById("gameOverText");
+
+    // Game variables
+    let score = 0;
+    let gameOver = false;
+    let glowPulse = 0; // For the glowing animation effect
+
+    // Player (Pixel Kitten)
+    const player = {
+        x: 80,
+        y: 210,
+        width: 32,
+        height: 32,
+        gravity: 0.6,
+        jumpForce: -10,
+        yVelocity: 0,
+        jumpCount: 0,
+        maxJumps: 2
+    };
+
+    // Obstacle (Pixel Mouse)
+    const obstacle = {
+        x: 650,
+        y: 216,
+        width: 36,
+        height: 26,
+        speed: 5
+    };
+
+    const grayShades = ["#666666", "#888888", "#aaaaaa", "#444444"];
+    let currentObstacleColor = grayShades;
+
+    // Functions to draw pixel-art sprites directly via code
+    function drawKitten(x, y) {
+        ctx.save();
+        
+        // Active glowing aura when score hits 50 or more
+        if (score >= 50) {
+            glowPulse += 0.1;
+            let blurRadius = 10 + Math.sin(glowPulse) * 6; // Pulsing blur size
+            ctx.shadowBlur = blurRadius;
+            ctx.shadowColor = "#ffffff"; // Bright white-gray glow
+        }
+
+        ctx.fillStyle = "#ffffff"; // Main color (White)
+        
+        // Body & Head
+        ctx.fillRect(x + 6, y + 10, 20, 16); 
+        ctx.fillRect(x + 12, y + 2, 12, 10);
+        
+        // Ears
+        ctx.fillRect(x + 12, y, 2, 2);
+        ctx.fillRect(x + 22, y, 2, 2);
+        
+        // Paws
+        ctx.fillRect(x + 8, y + 26, 4, 4);
+        ctx.fillRect(x + 20, y + 26, 4, 4);
+        
+        // Tail
+        ctx.fillRect(x + 2, y + 14, 4, 4);
+        ctx.fillRect(x, y + 10, 2, 4);
+
+        // Turn off glow for the small dark face details
+        ctx.shadowBlur = 0;
+
+        // Eyes (Gray)
+        ctx.fillStyle = "#555555";
+        ctx.fillRect(x + 15, y + 4, 2, 2);
+        ctx.fillRect(x + 20, y + 4, 2, 2);
+        
+        // Nose (Pink)
+        ctx.fillStyle = "#ffaaaa";
+        ctx.fillRect(x + 18, y + 6, 2, 1);
+        
+        ctx.restore();
+    }
+
+    function drawMouse(x, y, color) {
+        ctx.fillStyle = color;
+        
+        // Main body
+        ctx.fillRect(x + 10, y + 6, 18, 14);
+        ctx.fillRect(x + 26, y + 10, 6, 8); // Nose area
+        
+        // Ears
+        ctx.fillRect(x + 14, y + 2, 4, 6);
+        
+        // Feet
+        ctx.fillRect(x + 12, y + 20, 3, 3);
+        ctx.fillRect(x + 22, y + 20, 3, 3);
+        
+        // Tail
+        ctx.fillRect(x + 4, y + 12, 6, 2);
+        ctx.fillRect(x, y + 8, 4, 2);
+
+        // Eye (Dark)
+        ctx.fillStyle = "#222222";
+        ctx.fillRect(x + 24, y + 10, 2, 2);
+    }
+
+    // Input handlers
+    window.addEventListener("mousedown", () => {
+        if (gameOver) {
+            resetGame();
+        } else if (player.jumpCount < player.maxJumps) {
+            player.yVelocity = player.jumpForce;
+            player.jumpCount++;
+        }
+    });
+
+    function resetGame() {
+        score = 0;
+        gameOver = false;
+        obstacle.x = 650;
+        obstacle.speed = 5;
+        player.y = 210;
+        player.yVelocity = 0;
+        player.jumpCount = 0;
+        scoreElement.innerText = "Score: " + score;
+        gameOverText.style.display = "none";
+        requestAnimationFrame(update);
+    }
+
+    function update() {
+        if (gameOver) return;
+
+        // Player physics
+        player.yVelocity += player.gravity;
+        player.y += player.yVelocity;
+
+        // Ground collision
+        if (player.y >= 210) {
+            player.y = 210;
+            player.yVelocity = 0;
+            player.jumpCount = 0;
+        }
+
+        // Move obstacle
+        obstacle.x -= obstacle.speed;
+        if (obstacle.x < -obstacle.width) {
+            obstacle.x = 600 + Math.random() * 200;
+            score++;
+            scoreElement.innerText = "Score: " + score;
+            
+            if (obstacle.speed < 12) {
+                obstacle.speed += 0.4;
+            }
+            currentObstacleColor = grayShades[Math.floor(Math.random() * grayShades.length)];
+        }
+
+        // Hitbox Collision Check (AABB)
+        if (player.x < obstacle.x + obstacle.width &&
+            player.x + player.width > obstacle.x &&
+            player.y < obstacle.y + obstacle.height &&
+            player.y + player.height > obstacle.y) {
+            gameOver = true;
+            gameOverText.style.display = "block";
+        }
+
+        // Draw everything
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Ground line
+        ctx.strokeStyle = "#555555";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, 242);
+        ctx.lineTo(canvas.width, 242);
+        ctx.stroke();
+
+        // Draw character sprites
+        drawMouse(obstacle.x, obstacle.y, currentObstacleColor);
+        drawKitten(player.x, player.y);
+
+        requestAnimationFrame(update);
+    }
+
+    // Start game
+    resetGame();
+</script>
+
+</body>
+</html>
